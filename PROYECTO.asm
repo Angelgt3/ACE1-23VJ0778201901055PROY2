@@ -1,9 +1,11 @@
-NADA            equ      00
-JUGADOR         equ      01
-PARED           equ      02
-CAJA            equ      03
-OBJETIVO        equ      04
-SUELO           equ      05
+NADA                equ      00
+JUGADOR             equ      01
+PARED               equ      02
+CAJA                equ      03
+OBJETIVO            equ      04
+SUELO               equ      05
+CAJA_OBJETIVO       equ      06
+JUGADOR_OBJETIVO    equ      07
 .MODEL SMALL
 .RADIX 16
 .STACK
@@ -77,6 +79,17 @@ data_sprite_caja  db   06, 06, 06, 06, 06, 06, 06, 06
 ;                 db   7f, 7f, 7f, 7f, 7f, 75, 78, 75
 ;                  db   7f, 7f, 7f, 7f, 7f, 78, 75, 78
 ;                  db   78, 7f, 7f, 7f, 78, 75, 78, 75
+
+;;CAJA_EN_OBJETIVO
+dim_sprite_caja_obj  db   08, 08
+data_sprite_caja_obj    db   0e, 0e, 0e, 0e, 0e, 0e, 0e, 0e
+                        db   0e, 0e, 5c, 5c, 5c, 5c, 0e, 0e
+                        db   0e, 5c, 0e, 5c, 5c, 0e, 5c, 0e
+                        db   0e, 5c, 5c, 0e, 0e, 5c, 5c, 0e
+                        db   0e, 5c, 5c, 0e, 0e, 5c, 5c, 0e
+                        db   0e, 5c, 0e, 5c, 5c, 0e, 5c, 0e
+                        db   0e, 0e, 5c, 5c, 5c, 5c, 0e, 0e
+                        db   0e, 0e, 0e, 0e, 0e, 0e, 0e, 0e
 ;;OBJETIVO
 dim_sprite_obj    db   08, 08
 data_sprite_obj   db   08, 08, 08, 08, 08, 08, 08, 08
@@ -92,10 +105,11 @@ mapa              db   3e8 dup (0)
 ;;EXTRA
 numero 						db	 	 5 dup (30)
 valor1                       db     5 dup (0)
-num_valor1                       db      00
+num_valor1                   db      00
 valor2                       db     5 dup (0)
-num_valor2                      db      00
+num_valor2                   db      00
 buffer_linea                 db     0ff dup (0)
+archivo_x                    db     0ff dup (0)
 tam_liena_leida              db     00
 estado                       db     00
 
@@ -108,21 +122,40 @@ tk_suelo                    db     05, "suelo"
 ln  					  	db    	0d,0a,"$"
 
 ;Menu principal
-iniciar_juego db "INICIAR JUEGO","$"
-cargar_nivel  db "CARGAR NIVEL","$"
-configuracion db "CONFIGURACION","$"
-puntajes      db "PUNTAJES ALTOS","$"
-salir         db "SALIR$"
-iniciales     db "Angel Aragon - 201901055","$"
-opcion        db 0
-maximo        db 0
-xFlecha       dw 0
-yFlecha       dw 0
+m_usac	        db	'USAC','$'
+m_facultad      db  'Facultad de ingenieria','$'
+m_escuela       db  'Escuela de vacaciones' ,'$'
+m_curso         db  'Arqui 1','$'
+m_nombre        db  'Angel Geovany Aragon Perez ','$'
+m_carnet        db  '201901055','$'
+m_continuar     db  'PRESIONE [F1] PARA CONTINUAR','$'
+m_abajo         db  'Abajo: ','$'
+m_arriba        db  'Arriba: ','$'
+m_derecha       db  'Derecha: ','$'
+m_izquierda     db  'Izquierda: ','$'
+iniciar_juego   db "INICIAR JUEGO","$"
+cargar_nivel    db "CARGAR NIVEL","$"
+configuracion   db "CONFIGURACION","$"
+puntajes        db "PUNTAJES ALTOS","$"
+salir           db "SALIR$"
+m_controles     db "CONTROLES ACTUALES","$"
+
+m_regresar      db "REGRESAR",'$'
+iniciales       db "Angel Aragon - 201901055","$"
+m_pedir_arch    db "Ingrese el Nombre del archivo a cargar",'$'
+opcion          db 0
+maximo          db 0
+xFlecha         dw 0
+yFlecha         dw 0
 
 ;juego
 xJugador      db 3
 yJugador      db 3
 ;controles
+m_control_arriba        db 1e,'$'
+m_control_abajo         db 1f,'$'
+m_control_izquierda     db 11,'$'
+m_control_derecha       db 10,'$'
 control_arriba    db  48
 control_abajo     db  50
 control_izquierda db  4b
@@ -131,6 +164,7 @@ control_derecha   db  4d
 ;;nivel 1 
 archivo_nivel1              db     "NIV.00", 00
 handle_nivel1               dw     0000
+handle_x                     dw     0000
 
 
 .CODE
@@ -143,15 +177,93 @@ print macro buffer
 	mov dx, offset buffer
 	int 21h
 endm
-
 ;-------------------------------------CODIGO------------------------------------------------
 inicio:
 ;; MODO VIDEO ;;
     mov AH, 00
     mov AL, 13
     int 10
-    jmp menu_principal
+    jmp pantalla_inicial
     jmp fin
+
+pantalla_inicial:
+    call clear_pantalla
+    ;; IMPRIMIR MENSAJE INICIAL ;;
+    mov DL, 05
+    mov DH, 02
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_usac
+    mov AH, 09
+    int 21
+    pop DX
+    mov DL, 05
+    mov DH, 04
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_facultad
+    mov AH, 09
+    int 21
+    pop DX
+    mov DL, 05
+    mov DH, 06
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_escuela
+    mov AH, 09
+    int 21
+    pop DX
+    mov DL, 05
+    mov DH, 08
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_curso
+    mov AH, 09
+    int 21
+    pop DX
+    mov DL, 05
+    mov DH, 0c
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_nombre
+    mov AH, 09
+    int 21
+    pop DX
+    mov DL, 05
+    mov DH, 0e
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_carnet
+    mov AH, 09
+    int 21
+    pop DX
+    mov DL, 05
+    mov DH, 12
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_continuar
+    mov AH, 09
+    int 21
+    pop DX
+    mov AH, 00
+    int 16
+    cmp AH, 3b
+    je menu_principal
+    jmp pantalla_inicial
 
 menu_principal:
     call clear_pantalla
@@ -283,15 +395,242 @@ fin_menu_principal:
     mov AL, [opcion] ;;inicio juego
     cmp AL, 0
     je inicio_juego
+    mov AL, [opcion] ;;CARGAR
+    cmp AL, 1
+    je leer_nivel_x
+    mov AL, [opcion] ;;CARGAR
+    cmp AL, 3
+    je menu_configuracion
     mov AL, [opcion] ;;salida
     cmp AL, 4
     je fin
     jmp menu_principal
 
+menu_configuracion:
+    call clear_pantalla
+    mov AL, 0
+    mov [opcion], AL      ;; reinicio de la variable de salida
+    mov AL, 5
+    mov [maximo], AL
+    mov AX, 15
+    mov BX, 28
+    mov [xFlecha], AX
+    mov [yFlecha], BX
+    ;; IMPRIMIR OPCIONES ;;
+    ;;CONTROLES
+    mov DL, 05
+    mov DH, 02
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_controles
+    mov AH, 09
+    int 21
+    pop DX
+    ;;abajo
+    mov DL, 05
+    mov DH, 05
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_abajo
+    mov AH, 09
+    int 21
+    pop DX
+    ;;tecla actual abajo
+    mov DL, 15
+    mov DH, 05
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_control_abajo
+    mov AH, 09
+    int 21
+    pop DX
+    ;;arriba
+    mov DL, 05
+    mov DH, 07
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_arriba
+    mov AH, 09
+    int 21
+    pop DX
+    ;;tecla actual arriba
+    mov DL, 15
+    mov DH, 07
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_control_arriba
+    mov AH, 09
+    int 21
+    pop DX
+    ;;derecha
+    mov DL, 05
+    mov DH, 09
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_derecha
+    mov AH, 09
+    int 21
+    pop DX
+    ;;tecla actual derecha
+    mov DL, 15
+    mov DH, 09
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_control_derecha
+    mov AH, 09
+    int 21
+    pop DX
+    ;;izquierda
+    mov DL, 05
+    mov DH, 0b
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_izquierda
+    mov AH, 09
+    int 21
+    pop DX
+    ;;tecla actual izquierda
+    mov DL, 15
+    mov DH, 0b
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_control_izquierda
+    mov AH, 09
+    int 21
+    pop DX
+    ;;regresar
+    mov DL, 05
+    mov DH, 0d
+    mov BH, 00
+    mov AH, 02
+    int 10
+    push DX
+    mov DX, offset m_regresar
+    mov AH, 09
+    int 21
+    pop DX
+    ;; hacer la flecha
+    call pintar_flecha
+    ;;moverse para elegir op 
+    entrada_menu_conf:
+        mov AH, 00
+        int 16
+        cmp AH, 48
+        je restar_opcion_menu_conf
+        cmp AH, 50
+        je sumar_opcion_menu_conf
+        cmp AH, 3b  ;; le doy F1
+        je fin_menu_conf
+        jmp entrada_menu_conf
+    restar_opcion_menu_conf:
+		mov AL, [opcion]
+		dec AL
+		cmp AL, 0ff
+		je volver_a_cero_conf
+		mov [opcion], AL
+		jmp mover_flecha_menu_conf
+    sumar_opcion_menu_conf:
+		mov AL, [opcion]
+		mov AH, [maximo]
+		inc AL
+		cmp AL, AH
+		je volver_a_maximo_conf
+		mov [opcion], AL
+		jmp mover_flecha_menu_conf
+    volver_a_cero_conf:
+		mov AL, 0
+		mov [opcion], AL
+		jmp mover_flecha_menu_conf
+    volver_a_maximo_conf:
+		mov AL, [maximo]
+		dec AL
+		mov [opcion], AL
+		jmp mover_flecha_menu_conf
+    mover_flecha_menu_conf:
+		mov AX, [xFlecha]
+		mov BX, [yFlecha]
+		mov SI, offset dim_sprite_vacio
+		mov DI, offset data_sprite_vacio
+		call pintar_sprite
+		mov AX, 15
+		mov BX, 28
+		mov CL, [opcion]
+    ciclo_ubicar_flecha_menu_conf:
+		cmp CL, 0
+		je pintar_flecha_menu_conf
+		dec CL
+		add BX, 10
+		jmp ciclo_ubicar_flecha_menu_conf
+    pintar_flecha_menu_conf:
+		mov [xFlecha], AX
+		mov [yFlecha], BX
+		call pintar_flecha
+		jmp entrada_menu_conf
+    fin_menu_conf:
+    mov AL, [opcion] ;;ABAJO
+    cmp AL, 0
+    je pedir_control_abajo
+    mov AL, [opcion] ;;ARRIBA
+    cmp AL, 1
+    je pedir_control_arriba
+    mov AL, [opcion] ;;DERECHA
+    cmp AL, 2
+    je pedir_control_derecha
+    mov AL, [opcion] ;;IZQUIERDA
+    cmp AL, 3
+    je pedir_control_izquierda
+    mov AL, [opcion] ;;REGRESAR
+    cmp AL, 4
+    je menu_principal
+    jmp menu_configuracion
+
+ pedir_control_abajo:
+    mov AH,00
+    int 16
+    mov control_abajo, AH
+    mov m_control_abajo, AL
+    jmp menu_configuracion
+pedir_control_arriba:
+    mov AH,00
+    int 16
+    mov control_arriba, AH
+    mov m_control_arriba, AL
+    jmp menu_configuracion
+pedir_control_derecha:
+    mov AH,00
+    int 16
+    mov control_derecha, AH
+    mov m_control_derecha, AL
+    jmp menu_configuracion
+pedir_control_izquierda:
+    mov AH,00
+    int 16
+    mov control_izquierda, AH
+    mov m_control_izquierda, AL
+    jmp menu_configuracion
+
 inicio_juego:
     call clear_pantalla
-    call leer_nivel_1
-    
+    mov AX, 01
+    call leer_nivel_x
     ciclo_juego:
         call colocar_iniciales
         call pintar_mapa
@@ -311,13 +650,38 @@ colocar_iniciales:
     int 21
     ret
 
-leer_nivel_1:
-    ;; abrir archivo de nvl1
-    mov AH, 3d
-    mov AL, 00
-    mov DX, offset archivo_nivel1
-    int 21
-    mov [handle_nivel1], AX
+;;AX = OP, 01=NIV1 00=NIVX
+leer_nivel_x:
+    cmp AX, 00
+    je leer_nvlx
+    cmp AX, 01
+    je leer_nvl1
+    call clear_pantalla
+    leer_nvlx:
+        ;;pedir el nombre del archivo
+        mov DL, 00
+        mov DH, 03
+        mov BH, 00
+        mov AH, 02
+        int 10
+        push DX
+        mov DX, offset m_pedir_arch
+        mov AH, 09
+        int 21
+        pop DX
+        mov DX, offset archivo_nivel1 
+        mov AH, 0a
+        int 21
+        jmp seguir_leer
+    leer_nvl1:
+        ;; abrir archivo de nvl1
+        mov AH, 3d
+        mov AL, 00
+        mov DX, offset archivo_nivel1
+        int 21
+        mov [handle_nivel1], AX
+        jmp seguir_leer
+    seguir_leer:
     ciclo_lineaXlinea:
         ;volver el estado 0
         mov DI, offset estado
@@ -621,7 +985,7 @@ fin_pintar_sprite:
 pintar_flecha:
     mov AX, [xFlecha]
     mov BX, [yFlecha]
-    mov SI, offset dim_sprite_flcha 
+    mov SI, offset dim_sprite_flcha
     mov DI, offset data_sprite_flcha
     call pintar_sprite
     ret
@@ -752,6 +1116,10 @@ ciclo_h:
     je pintar_objetivo_mapa
     cmp DL, SUELO
     je pintar_suelo_mapa
+    cmp DL, CAJA_OBJETIVO
+    je pintar_caja_obj_mapa
+    cmp DL, JUGADOR_OBJETIVO
+    je pintar_jugador_obj_mapa
     jmp continuar_h
 pintar_vacio_mapa:
     push AX
@@ -777,6 +1145,14 @@ pintar_jugador_mapa:
     call pintar_sprite
     pop AX
     jmp continuar_h
+pintar_jugador_obj_mapa:
+    push AX
+    call adaptar_coordenada
+    mov SI, offset dim_sprite_jug
+    mov DI, offset data_sprite_jug
+    call pintar_sprite
+    pop AX
+    jmp continuar_h
 pintar_pared_mapa:
     push AX
     call adaptar_coordenada
@@ -790,6 +1166,14 @@ pintar_caja_mapa:
     call adaptar_coordenada
     mov SI, offset dim_sprite_caja
     mov DI, offset data_sprite_caja
+    call pintar_sprite
+    pop AX
+    jmp continuar_h
+pintar_caja_obj_mapa:
+    push AX
+    call adaptar_coordenada
+    mov SI, offset dim_sprite_caja_obj
+    mov DI, offset data_sprite_caja_obj
     call pintar_sprite
     pop AX
     jmp continuar_h
@@ -853,6 +1237,16 @@ mover_jugador_arr:
     je hay_pared_arriba
     cmp DL, PARED
     je hay_pared_arriba
+    ;cmp DL, OBJETIVO
+    ;jne no_converitr_amarrilla_caja_arriba
+    
+    ;mov DL, CAJA_OBJETIVO
+    ;push AX
+    ;dec AL
+    ;call colocar_en_mapa
+    ;pop AX
+    ;jmp no_mover_caja_arriba
+    ;no_converitr_amarrilla_caja_arriba:
     
     ;;muve la caja para arriba
     mov DL, CAJA
@@ -870,6 +1264,7 @@ mover_jugador_arr:
     mov DL, SUELO
     inc AL
     call colocar_en_mapa
+    
     ret
 hay_pared_arriba:
     ret
@@ -899,6 +1294,17 @@ mover_jugador_aba:
     je hay_pared_abajo
     cmp DL, PARED
     je hay_pared_abajo
+    ;cmp DL, OBJETIVO
+    ;jne no_converitr_amarrilla_caja_abajo
+    
+    ;mov DL, CAJA_OBJETIVO
+    ;push AX
+    ;inc AL
+    ;call colocar_en_mapa
+    ;pop AX
+    ;jmp no_mover_caja_abajo
+    ;no_converitr_amarrilla_caja_abajo:
+    
     ;;muve la caja para abajo
     mov DL, CAJA
     push AX
@@ -911,7 +1317,29 @@ mover_jugador_aba:
     push AX
     call colocar_en_mapa
     pop AX
-
+    ;;si hay un objetivo el jugador se vuelve jugador_objetivo
+    ;push AX
+    ;call obtener_de_mapa
+    ;pop AX
+    ;cmp DL, OBJETIVO
+    ;jne no_es_obj_abajo
+    ;mov [yJugador], AL
+    ;mov DL, JUGADOR_OBJETIVO
+    ;push AX
+    ;call colocar_en_mapa
+    ;pop AX
+    ;no_es_obj_abajo:
+    ;; ver si es jugador objetivo
+    ;push AX
+    ;call obtener_de_mapa
+    ;pop AX
+    ;cmp DL, JUGADOR_OBJETIVO
+    ;jne no_es_jug_obj_abajo
+    ;mov DL, OBJETIVO
+    ;dec AL
+    ;call colocar_en_mapa
+    ;ret
+    no_es_jug_obj_abajo:
     mov DL, SUELO
     dec AL
     call colocar_en_mapa
@@ -926,10 +1354,12 @@ mover_jugador_izq:
     push AX
     call obtener_de_mapa
     pop AX
-    ;; DL <- elemento en mapa
+    ;;;;;;;;;;;; PARED
     cmp DL, PARED
     je hay_pared_izquierda 
     
+    
+    ;;;;;;;;;;;; CAJA
     ;;Verifico que la siguinete posucion esta libre para mover la caja si no no la mueve
     cmp DL, CAJA
     jne no_mover_caja_izquierda
@@ -943,7 +1373,18 @@ mover_jugador_izq:
     je hay_pared_izquierda
     cmp DL, PARED
     je hay_pared_izquierda
-    ;;muve la caja para abajo
+    ;cmp DL, OBJETIVO
+    ;jne no_converitr_amarrilla_caja_izq
+    
+    ;mov DL, CAJA_OBJETIVO
+    ;push AX
+    ;dec AH
+    ;call colocar_en_mapa
+    ;pop AX
+    ;jmp no_mover_caja_izquierda
+    ;no_converitr_amarrilla_caja_izq:
+
+    ;;muve la caja para izquierda
     mov DL, CAJA
     push AX
     dec AH
@@ -955,7 +1396,9 @@ mover_jugador_izq:
     push AX
     call colocar_en_mapa
     pop AX
+
     
+
     mov DL, SUELO
     inc AH
     call colocar_en_mapa
@@ -986,6 +1429,17 @@ mover_jugador_der:
     je hay_pared_derecha
     cmp DL, PARED
     je hay_pared_derecha
+    ;cmp DL, OBJETIVO
+    ;jne no_converitr_amarrilla_caja_der
+    
+    ;mov DL, CAJA_OBJETIVO
+    ;push AX
+    ;inc AH
+    ;call colocar_en_mapa
+    ;pop AX
+    ;jmp no_mover_caja_derecha
+    ;no_converitr_amarrilla_caja_der:
+    
     ;;muve la caja para derecha
     mov DL, CAJA
     push AX
