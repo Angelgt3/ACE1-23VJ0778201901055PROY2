@@ -41,16 +41,26 @@ data_sprite_pared db   02, 02, 02, 78, 02, 02, 02, 78
                   db   06, 06, 06, 75, 06, 06, 06, 75
                   db   06, 06, 06, 78, 06, 06, 06, 78
                   db   06, 06, 06, 75, 06, 06, 06, 75
-;;JUGADOR
-dim_sprite_jug  db   08, 08
-data_sprite_jug   db   75, 08, 03, 44, 44, 78, 75, 78
-                  db   03, 08, 44, 58, 58, 44, 78, 75
-                  db   03, 08, 44, 58, 58, 78, 75, 78
+;;JUGADOR_OBJETIVO
+dim_sprite_jug_obj  db   08, 08
+data_sprite_jug_obj   db   75, 08, 28, 44, 44, 78, 75, 78
+                  db   28, 08, 44, 58, 58, 44, 78, 75
+                  db   28, 08, 44, 58, 58, 78, 75, 78
                   db   78, 08, 58, 58, 58, 75, 78, 75
-                  db   11, 11, 11, 03, 03, 78, 08, 78
-                  db   78, 58, 00, 43, 00, 03, 08, 75
-                  db   75, 78, 03, 03, 03, 78, 08, 78
+                  db   11, 11, 11, 28, 28, 78, 08, 78
+                  db   78, 58, 00, 43, 00, 28, 08, 75
+                  db   75, 78, 28, 28, 28, 78, 08, 78
                   db   78, 75, 06, 75, 06, 75, 78, 75
+;;JUGADOR
+dim_sprite_jug          db   08, 08
+data_sprite_jug         db   75, 08, 03, 44, 44, 78, 75, 78
+                        db   03, 08, 44, 58, 58, 44, 78, 75
+                        db   03, 08, 44, 58, 58, 78, 75, 78
+                        db   78, 08, 58, 58, 58, 75, 78, 75
+                        db   11, 11, 11, 03, 03, 78, 08, 78
+                        db   78, 58, 00, 43, 00, 03, 08, 75
+                        db   75, 78, 03, 03, 03, 78, 08, 78
+                        db   78, 75, 06, 75, 06, 75, 78, 75
 ;;SUELO
 dim_sprite_suelo  db   08, 08
 data_sprite_suelo db   75, 78, 75, 78, 75, 78, 75, 78
@@ -141,7 +151,8 @@ salir           db "SALIR$"
 m_controles     db "CONTROLES ACTUALES","$"
 
 m_regresar      db "REGRESAR",'$'
-iniciales       db "Angel Aragon - 201901055","$"
+iniciales       db "AGAP - 201901055","$"
+m_contador      db "MOVS:",'$'
 m_pedir_arch    db "Ingrese el Nombre del archivo a cargar",'$'
 opcion          db 0
 maximo          db 0
@@ -151,6 +162,9 @@ yFlecha         dw 0
 ;juego
 xJugador      db 3
 yJugador      db 3
+cont_movs     dw 0000
+cad_numero   db 5 dup (30),'$'
+
 ;controles
 m_control_arriba        db 1e,'$'
 m_control_abajo         db 1f,'$'
@@ -184,7 +198,6 @@ inicio:
     mov AL, 13
     int 10
     jmp pantalla_inicial
-    jmp fin
 
 pantalla_inicial:
     call clear_pantalla
@@ -397,15 +410,19 @@ fin_menu_principal:
     je inicio_juego
     mov AL, [opcion] ;;CARGAR
     cmp AL, 1
-    je leer_nivel_x
+    je antes_nivel_x
     mov AL, [opcion] ;;CARGAR
     cmp AL, 3
     je menu_configuracion
-    mov AL, [opcion] ;;salida
+    mov AL, [opcion] ;;SALIR
     cmp AL, 4
     je fin
     jmp menu_principal
 
+antes_nivel_x:
+    call clear_pantalla
+    mov AX, 00
+    jmp leer_nivel_x
 menu_configuracion:
     call clear_pantalla
     mov AL, 0
@@ -628,23 +645,47 @@ pedir_control_izquierda:
     jmp menu_configuracion
 
 inicio_juego:
+    mov cont_movs, 0000 ;;se vuelve 0 el contador
     call clear_pantalla
     mov AX, 01
     call leer_nivel_x
     ciclo_juego:
-        call colocar_iniciales
+        call colocar_iniciales    
         call pintar_mapa
         call entrada_juego
         jmp ciclo_juego
-    jmp fin
 
 colocar_iniciales:
+    ;M_MOVIMIENTOS
+    mov DL, 11
+    mov DH, 18
+    mov BH, 00
+    mov AH, 02
+    int 10
+    mov DX, offset m_contador
+    mov AH, 09
+    int 21
+    ;CONTADOR DE MOVIMIENTOS (NUMERO)
+    mov DL, 16
+    mov DH, 18
+    mov BH, 00
+    mov AH, 02
+    int 10
+    mov AX, [cont_movs]
+    call numero_cadena
+    cmp cont_movs, 0000
+	jne seguir_cont_movs
+	call es_cero
+    seguir_cont_movs:
+    mov DX, offset cad_numero
+    mov AH, 09
+    int 21
+    ;; AGAP- 201901055
     mov DL, 00
     mov DH, 18
     mov BH, 00
     mov AH, 02
     int 10
-    
     mov DX, offset iniciales
     mov AH, 09
     int 21
@@ -669,10 +710,10 @@ leer_nivel_x:
         mov AH, 09
         int 21
         pop DX
-        mov DX, offset archivo_nivel1 
+        mov DX, offset archivo_nivel1
         mov AH, 0a
         int 21
-        jmp seguir_leer
+        jmp leer_nvl1
     leer_nvl1:
         ;; abrir archivo de nvl1
         mov AH, 3d
@@ -882,7 +923,7 @@ retorno_nvl:
 
 ;;cadena a numero
 ;; ENTRADA: DI -> dirección a una cadena numérica
-;; SALIDA: AX -> número convertido
+;; SALIDA: AL -> número convertido
 cadena_numero:
 		mov AL, 00    ; inicializar la salida
 		mov CX, 0002    ; inicializar contador
@@ -1148,8 +1189,8 @@ pintar_jugador_mapa:
 pintar_jugador_obj_mapa:
     push AX
     call adaptar_coordenada
-    mov SI, offset dim_sprite_jug
-    mov DI, offset data_sprite_jug
+    mov SI, offset dim_sprite_jug_obj
+    mov DI, offset data_sprite_jug_obj
     call pintar_sprite
     pop AX
     jmp continuar_h
@@ -1215,6 +1256,7 @@ entrada_juego:
     cmp AH, 3c
     ret
 mover_jugador_arr:
+    inc cont_movs ;incrementa el contador de movimientos
     mov AH, [xJugador]
     mov AL, [yJugador]
     dec AL
@@ -1271,6 +1313,7 @@ hay_pared_arriba:
 
 
 mover_jugador_aba:
+    inc cont_movs ;incrementa el contador de movimientos
     mov AH, [xJugador]
     mov AL, [yJugador]
     inc AL
@@ -1339,7 +1382,7 @@ mover_jugador_aba:
     ;dec AL
     ;call colocar_en_mapa
     ;ret
-    no_es_jug_obj_abajo:
+    ;no_es_jug_obj_abajo:
     mov DL, SUELO
     dec AL
     call colocar_en_mapa
@@ -1348,6 +1391,7 @@ hay_pared_abajo:
     ret
 
 mover_jugador_izq:
+    inc cont_movs ;incrementa el contador de movimientos
     mov AH, [xJugador]
     mov AL, [yJugador]
     dec AH
@@ -1406,6 +1450,7 @@ mover_jugador_izq:
 hay_pared_izquierda:
     ret
 mover_jugador_der:
+    inc cont_movs ;incrementa el contador de movimientos
     mov AH, [xJugador]
     mov AL, [yJugador]
     inc AH
@@ -1462,6 +1507,46 @@ hay_pared_derecha:
 fin_entrada_juego:
     ret
 
+numero_cadena:
+	mov CX, 0005 ; iniciar contador
+	mov DI, offset cad_numero
+	ciclo_poner30s: ;coloca el caracter 0 en toda la cadena
+		mov BL, 30
+		mov [DI], BL
+		inc DI
+		loop ciclo_poner30s
+	mov CX, AX    ; inicializar contador
+	mov DI, offset cad_numero
+	add DI, 0004
+	ciclo_convertirAcadena:
+		mov BL, [DI]
+		inc BL
+		mov [DI], BL
+		cmp BL, 3a	;;si es 3a 
+		je aumentar_siguiente_digito_primera_vez
+		loop ciclo_convertirAcadena
+	jmp retorno_convertirAcadena
+	aumentar_siguiente_digito_primera_vez:
+		push DI
+	aumentar_siguiente_digito:
+		mov BL, 30     ; poner en '0' el actual
+		mov [DI], BL
+		dec DI         ; puntero a la cadena
+		mov BL, [DI]
+		inc BL
+		mov [DI], BL
+		cmp BL, 3a ;;si es 3a 
+		je aumentar_siguiente_digito
+		pop DI         ; se recupera DI
+		loop ciclo_convertirAcadena
+	retorno_convertirAcadena:
+		ret
+es_cero:
+	mov DI, offset cad_numero
+	mov CX, 0005
+	call limpiar
+	mov cad_numero, 30
+	ret
 ;-------------------------------------FIN---------------------------------------------------
 fin:
 .EXIT
